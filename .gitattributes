@@ -1,0 +1,4 @@
+# O código-fonte deste protótipo está em dist e deve entrar nas estatísticas.
+dist/*.html linguist-vendored=false linguist-detectable=true
+dist/*.css linguist-vendored=false linguist-detectable=true
+dist/*.js linguist-vendored=false linguist-detectable=true
