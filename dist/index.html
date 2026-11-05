@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <!-- Configurações da página: idioma, caracteres, largura e título da aba. -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Protótipo de baixa fidelidade de uma plataforma de flashcards para estudo. Projeto A3 de Usabilidade, Desenvolvimento Web e Mobile.">
+  <meta name="theme-color" content="#fcf5f4">
+  <title>Clareia — Protótipo de baixa fidelidade</title>
+  <!-- CSS cuida da aparência; defer executa o JavaScript após a leitura do HTML. -->
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <!-- Atalho de teclado para pular o menu e chegar ao conteúdo. -->
+  <a class="skip-link" href="#main">Pular para o conteúdo</a>
+  <!-- Identificação do protótipo e botão que abre o mapa das telas. -->
+  <div class="prototype-bar"><span><span class="status-dot" aria-hidden="true"></span> PROTÓTIPO A3 <span class="bar-divider">/</span> <span class="hide-small">BAIXA FIDELIDADE</span><span class="show-small">BAIXA FIDELIDADE</span></span><button data-action="map" aria-label="Mapa de telas"><span class="hide-small">Mapa de telas</span><span class="show-small">Mapa</span> <span aria-hidden="true">↗</span></button></div>
+  <!-- render(), em app.js, coloca a tela atual dentro deste contêiner. -->
+  <div id="app"></div>
+  <!-- Janela reutilizada para editar cartões, confirmar ações e ajustar tempos. -->
+  <dialog id="dialog" aria-labelledby="dialog-title"></dialog>
+  <!-- Feedback temporário, anunciado também para tecnologias assistivas. -->
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>
