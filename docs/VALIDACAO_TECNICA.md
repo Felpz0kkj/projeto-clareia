@@ -60,3 +60,7 @@ Código organizado e comentado por agente Luna e revisado pelo agente principal.
 ## Integração real Gemini — 17/11/2026
 
 Oito testes automáticos passaram, cobrindo servidor Node, Worker, envio de texto/PDF, validações, cota, arquivos privados, edição, salvamento, revisão e cancelamento. Os testes usam respostas simuladas e não consomem cota. Separadamente, duas chamadas reais foram executadas com uma chave configurada localmente: texto de redes e PDF sintético de redes, ambos retornando cinco cartões coerentes e HTTP 200. A chave não foi exibida, servida na interface ou incluída no Git. O espaço de estudo permanece local, sem autenticação própria ou sincronização. Não houve avaliação com participantes externos.
+
+## Diagnóstico de falhas Gemini — 17/11/2026
+
+Reproduzida a mensagem genérica de indisponibilidade em uma chamada local. A chamada seguinte, após reiniciar o servidor, retornou cinco cartões com HTTP 200; a causa exata da falha anterior não foi registrada. Acrescentado diagnóstico seguro do status HTTP do provedor, sem chave ou conteúdo, e mensagens específicas para falhas temporárias, modelo não encontrado e material acima do limite. Nove testes automáticos passaram, incluindo validação de ausência de repetição automática em falhas transitórias.

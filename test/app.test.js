@@ -71,6 +71,19 @@ test('limite local e origem protegem a cota; arquivos privados não são servido
   assert.match(await html.text(), /ESTUDO COM IA/);
 });
 
+test('falha temporária e modelo inexistente têm mensagens distintas e não repetem chamadas', async t => {
+  let calls = 0;
+  const temporary = await start(t, { fetchImpl: async () => { calls++; return new Response('', { status: 503 }); } });
+  const response = await post(temporary, material);
+  assert.equal(response.status, 503);
+  assert.match((await response.json()).error, /falha temporária \(HTTP 503\)/);
+  assert.equal(calls, 1);
+  const missingModel = await start(t, { fetchImpl: async () => new Response('', { status: 404 }) });
+  const modelResponse = await post(missingModel, material);
+  assert.equal(modelResponse.status, 502);
+  assert.match((await modelResponse.json()).error, /modelo Gemini configurado não foi encontrado/);
+});
+
 async function browser(t, fetchImpl) {
   const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
   const dom = new JSDOM(html, { url: 'http://localhost:3000', runScripts: 'outside-only', pretendToBeVisual: true });

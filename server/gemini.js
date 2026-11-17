@@ -91,9 +91,14 @@ Material de estudo:\n${input.text}`;
 
   // Sem repetição automática: uma falha não dispara outras chamadas e não gasta mais cota.
   if (!response.ok) {
+    // Registra somente o código do provedor: nunca chave, material ou corpo da resposta.
+    console.warn(JSON.stringify({ event: 'gemini_error', upstreamStatus: response.status }));
     if (response.status === 429) throw new AppError(429, 'A cota ou o limite de requisições do Gemini foi atingido. Aguarde e confira os limites no AI Studio.');
     if ([400, 401, 403].includes(response.status)) throw new AppError(502, 'O Gemini recusou a solicitação. Confira a chave, o acesso ao modelo e o projeto no AI Studio.');
-    throw new AppError(502, 'O Gemini está indisponível no momento. Tente mais tarde.');
+    if (response.status === 404) throw new AppError(502, 'O modelo Gemini configurado não foi encontrado. Confira GEMINI_MODEL no servidor.');
+    if (response.status === 413) throw new AppError(413, 'O material ultrapassou o limite aceito pelo Gemini. Envie um trecho menor.');
+    if (response.status >= 500) throw new AppError(503, `O Gemini retornou uma falha temporária (HTTP ${response.status}). Aguarde alguns segundos e clique em Gerar flashcards novamente. Seu material foi mantido.`);
+    throw new AppError(502, `O Gemini não concluiu o pedido (HTTP ${response.status}). Tente um material menor.`);
   }
   const data = await response.json();
   if (data.status !== 'completed') throw new AppError(502, 'A IA não concluiu a geração. Tente outro material.');
