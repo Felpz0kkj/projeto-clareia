@@ -84,11 +84,12 @@ test('falha temporária e modelo inexistente têm mensagens distintas e não rep
   assert.match((await modelResponse.json()).error, /modelo Gemini configurado não foi encontrado/);
 });
 
-async function browser(t, fetchImpl) {
+async function browser(t, fetchImpl, savedData = null) {
   const html = await readFile(new URL('../dist/index.html', import.meta.url), 'utf8');
   const dom = new JSDOM(html, { url: 'http://localhost:3000', runScripts: 'outside-only', pretendToBeVisual: true });
   t.after(() => dom.window.close());
   const w = dom.window;
+  if (savedData) w.localStorage.setItem('revisa-wireframe-v1', JSON.stringify(savedData));
   w.fetch = fetchImpl;
   w.AbortController = AbortController;
   w.structuredClone = structuredClone;
@@ -143,4 +144,52 @@ test('cancelar interrompe a solicitação; erros preservam a configuração para
   await waitFor(() => Boolean(w.document.querySelector('[role="alert"]')));
   assert.match(w.document.querySelector('[role="alert"]').textContent, /Cota esgotada/);
   assert.equal(w.document.getElementById('deck-title').value, 'Usabilidade — revisão da aula');
+});
+
+test('categoria personalizada é criada, salva, exibida e reutilizada após reabrir', async t => {
+  const w = await browser(t, async () => Response.json({ cards, provider: 'Gemini' }));
+  click(w, 'guest'); click(w, 'sample'); submit(w, 'source-form');
+  const select = w.document.getElementById('demo-topic');
+  select.value = 'custom';
+  select.dispatchEvent(new w.Event('change', { bubbles: true }));
+  const input = w.document.getElementById('custom-category');
+  assert.equal(input.disabled, false);
+  assert.equal(input.required, true);
+  assert.equal(w.document.getElementById('custom-category-field').hidden, false);
+  submit(w, 'config-form');
+  assert.ok(w.document.getElementById('config-form'), 'categoria vazia impede a geração');
+  input.value = 'HTML e CSS';
+  submit(w, 'config-form');
+  await waitFor(() => Boolean(w.document.querySelector('[data-action="save-only"]')));
+  click(w, 'save-only');
+  const saved = JSON.parse(w.localStorage.getItem('revisa-wireframe-v1'));
+  assert.equal(saved.decks[0].category, 'HTML e CSS');
+  assert.match(w.document.querySelector('#library-grid').textContent, /HTML e CSS/);
+  const reopened = await browser(t, async () => Response.json({ cards, provider: 'Gemini' }), saved);
+  click(reopened, 'guest'); click(reopened, 'sample'); submit(reopened, 'source-form');
+  const options = Array.from(reopened.document.getElementById('demo-topic').options);
+  assert.ok(options.some(option => option.textContent === 'HTML e CSS'));
+  reopened.document.getElementById('demo-topic').value = 'saved:HTML e CSS';
+  submit(reopened, 'config-form');
+  await waitFor(() => Boolean(reopened.document.querySelector('[data-action="save-only"]')));
+  click(reopened, 'save-only');
+  assert.equal(JSON.parse(reopened.localStorage.getItem('revisa-wireframe-v1')).decks[0].category, 'HTML e CSS');
+});
+
+test('respostas começam ocultas na prévia e só o cartão escolhido é revelado', async t => {
+  const w = await browser(t, async () => Response.json({ cards, provider: 'Gemini' }));
+  click(w, 'guest'); click(w, 'sample'); submit(w, 'source-form'); submit(w, 'config-form');
+  await waitFor(() => Boolean(w.document.querySelector('.card-list')));
+  assert.equal(w.document.querySelectorAll('.answer-placeholder').length, 5);
+  assert.ok(!w.document.querySelector('.card-list').textContent.includes(cards[0].a));
+  assert.ok(!w.document.querySelector('.card-list').innerHTML.includes(cards[0].a));
+  click(w, 'toggle-preview-answer');
+  assert.equal(w.document.querySelectorAll('.answer-placeholder').length, 4);
+  assert.match(w.document.querySelector('.card-list').textContent, /Resposta 1 do material/);
+  assert.ok(!w.document.querySelector('.card-list').textContent.includes(cards[1].a));
+  assert.equal(w.document.querySelector('[data-action="toggle-preview-answer"]').getAttribute('aria-expanded'), 'true');
+  click(w, 'toggle-preview-answer');
+  assert.equal(w.document.querySelectorAll('.answer-placeholder').length, 5);
+  click(w, 'save-only'); click(w, 'edit-deck');
+  assert.equal(w.document.querySelectorAll('.answer-placeholder').length, 5, 'reabrir a prévia oculta tudo novamente');
 });

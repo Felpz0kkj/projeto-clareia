@@ -1728,3 +1728,10 @@ dialog .dialog-head .icon-btn {
 .composer:focus-within {
   border-color: var(--dark);
 }
+
+/* Evita antecipar as respostas durante a criação e conferência dos cartões. */
+.preview-answer { margin-top: 12px; }
+.answer-placeholder { filter: blur(4px); user-select: none; pointer-events: none; margin: 10px 0; }
+.answer-placeholder span { display: block; height: 9px; width: 82%; max-width: 360px; margin: 9px 0; border-radius: 4px; background: var(--line); }
+.answer-placeholder span:last-child { width: 58%; max-width: 250px; }
+.answer-toggle { display: flex; margin-top: 8px; min-height: 44px; font-size: 12px; }

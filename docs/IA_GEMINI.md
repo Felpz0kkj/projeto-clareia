@@ -54,3 +54,9 @@ Uma explicação oral: “O navegador coleta o material e chama nosso servidor. 
 Use uma chave de projeto no nível gratuito **sem faturamento vinculado**. O modelo escolhido tem cotas; o aplicativo não ativa cobrança nem consegue verificar sozinho o faturamento da conta. Não usamos ferramentas adicionais de busca, banco de dados pago ou troca automática de provedor.
 
 No nível gratuito, os materiais podem ser usados pelo Google para melhorar produtos. A tela informa o envio antes da geração. Use conteúdo que você pode compartilhar; nunca inclua a chave no HTML ou no GitHub.
+
+## Categorias e respostas ocultas
+
+Na configuração, a opção “Criar categoria personalizada” abre um campo obrigatório com até 60 caracteres. O nome vai para `working.category` e é salvo junto com o conjunto. A lista de categorias reúne as opções iniciais e os nomes já salvos. A categoria organiza a biblioteca; a IA continua usando o material e as instruções enviados.
+
+`revealedPreviewAnswers` é um conjunto temporário de IDs revelados. `previewAnswer()` mostra um marcador desfocado enquanto o cartão está oculto, sem inserir o texto real da resposta no HTML. O botão de cada cartão alterna sua revelação e informa o estado com `aria-expanded`. Ao entrar novamente na prévia, a lista de revelações é limpa. A resposta continua disponível ao editar o cartão intencionalmente.

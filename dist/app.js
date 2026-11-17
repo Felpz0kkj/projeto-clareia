@@ -267,6 +267,8 @@ let screen = user ? 'home' : 'login';
 // Estado ainda não salvo do fluxo de entrada e configuração de um novo conjunto.
 let generationController = null;
 let generationError = "";
+// Revelações da prévia são temporárias e nunca vão para o armazenamento.
+const revealedPreviewAnswers = new Set();
 let draft = { text: '', file: null, topic: 'usabilidade', title: '', count: 5 };
 // `working` é a cópia em edição; `review` representa a sessão de estudo atual.
 let working = null,
@@ -329,6 +331,7 @@ function toast(message, undo = null) {
   }, 6000);
 }
 function go(next) {
+  if (next === 'preview') revealedPreviewAnswers.clear();
   generationController?.abort();
   generationController = null;
   // Invalidar o ticket cancela uma geração atrasada; também devolvemos foco ao conteúdo principal.
@@ -405,7 +408,7 @@ function login() {
 
 function deckCard(d, compact = false) {
   const studied = sessions.filter((s) => s.deckId === d.id).length;
-  return `<article class="deck"><div class="deck-head"><span class="deck-icon">${icon('cards')}</span><span class="badge">${d.example ? 'Exemplo' : 'Meu conjunto'}</span></div><h3>${escapeHTML(d.title)}</h3><p>${d.cards.length} cartões · ${escapeHTML(topics[d.topic]?.label || 'Personalizado')}</p><div class="deck-bottom"><span>${studied ? `${studied} ${studied === 1 ? 'sessão' : 'sessões'}` : 'Ainda não revisado'}</span><button data-action="open-deck" data-id="${escapeHTML(d.id)}">Estudar <span aria-hidden="true">↗</span></button></div>${compact ? '' : `<div class="actions">${button('Editar', 'edit-deck', `data-id="${escapeHTML(d.id)}"`)}<button class="icon-btn" data-action="delete-deck" data-id="${escapeHTML(d.id)}" aria-label="Excluir conjunto ${escapeHTML(d.title)}">${icon('trash')}</button></div>`}</article>`;
+  return `<article class="deck"><div class="deck-head"><span class="deck-icon">${icon('cards')}</span><span class="badge">${d.example ? 'Exemplo' : 'Meu conjunto'}</span></div><h3>${escapeHTML(d.title)}</h3><p>${d.cards.length} cartões · ${escapeHTML(d.category || topics[d.topic]?.label || 'Personalizado')}</p><div class="deck-bottom"><span>${studied ? `${studied} ${studied === 1 ? 'sessão' : 'sessões'}` : 'Ainda não revisado'}</span><button data-action="open-deck" data-id="${escapeHTML(d.id)}">Estudar <span aria-hidden="true">↗</span></button></div>${compact ? '' : `<div class="actions">${button('Editar', 'edit-deck', `data-id="${escapeHTML(d.id)}"`)}<button class="icon-btn" data-action="delete-deck" data-id="${escapeHTML(d.id)}" aria-label="Excluir conjunto ${escapeHTML(d.title)}">${icon('trash')}</button></div>`}</article>`;
 }
 function home() {
   return `<section class="home-hero"><div class="headline"><span class="eyebrow">UM NOVO PONTO DE PARTIDA</span><h1>O que vamos estudar hoje?</h1><p>Traga o conteúdo da sua matéria. Organize sua próxima revisão.</p></div><form id="source-form"><div class="composer"><label for="source-text" class="skip-link">Material de estudo ou instrução</label><textarea id="source-text" name="source" maxlength="40000" placeholder="Cole suas anotações ou escreva o que deseja revisar...">${escapeHTML(draft.text)}</textarea>${draft.file ? `<div class="file-chip">${icon('file')}<div><strong>${escapeHTML(draft.file.name)}</strong><div class="tiny muted">${Math.max(1, Math.round(draft.file.size / 1024))} KB · pronto para envio</div></div><button class="icon-btn" data-action="remove-file" type="button" aria-label="Remover anexo">${icon('close')}</button></div>` : ''}<div class="composer-footer"><div class="row"><button class="btn ghost" data-action="attach" type="button">${icon('upload')} Anexar material</button><input id="file-input" type="file" accept=".pdf,.txt,application/pdf,text/plain" hidden></div><button class="btn primary" type="submit">Criar flashcards ${icon('arrow')}</button></div></div><div id="source-error" class="error" role="alert"></div><p class="composer-hint">PDF até 2 MB · TXT até 40 mil caracteres · geração pelo Gemini</p></form><div class="quick-prompts" aria-label="Carregar material de exemplo"><button data-action="sample" data-topic="usabilidade">+ Exemplo de Usabilidade</button><button data-action="sample" data-topic="ia">+ Exemplo de IA</button><button data-action="sample" data-topic="redes">+ Exemplo de Redes</button></div>${annotation('Ações visíveis reduzem a necessidade de saber escrever prompts. O anexo pode ser removido antes de continuar.')}</section><section class="recent-section"><div class="section-head"><h2>Seus conjuntos</h2><button class="btn ghost" data-action="navigate" data-screen="library">Ver todos <span aria-hidden="true">↗</span></button></div>${
@@ -421,24 +424,47 @@ function home() {
 function sourceAside() {
   return `<aside class="source-aside panel"><span class="eyebrow">MATERIAL ENVIADO</span><div class="source-placeholder">${icon('file')}</div><h3>${escapeHTML(draft.file?.name || 'Texto colado')}</h3><span class="badge">${draft.file ? 'Arquivo anexado' : 'Texto'}</span>${draft.text ? `<div class="source-snippet">${escapeHTML(draft.text.slice(0, 550))}${draft.text.length > 550 ? '…' : ''}</div>` : ''}<p class="small muted" style="margin:15px 0 0">Este material será enviado ao Gemini somente quando você clicar em Gerar flashcards.</p></aside>`;
 }
+// Junta as categorias iniciais às que já foram salvas pelo estudante.
+function categoryPicker() {
+  const choices = Object.entries(topics).map(([value, topic]) => ({ value, label: topic.label }));
+  const labels = new Set(choices.map(choice => choice.label.toLocaleLowerCase('pt-BR')));
+  for (const deck of decks) {
+    if (typeof deck.category !== 'string') continue;
+    const label = deck.category.trim().slice(0, 60);
+    if (!label || labels.has(label.toLocaleLowerCase('pt-BR'))) continue;
+    choices.push({ value: 'saved:' + label, label });
+    labels.add(label.toLocaleLowerCase('pt-BR'));
+  }
+  let selected = draft.topic;
+  if (draft.topic === 'custom') {
+    selected = choices.find(choice => choice.label === draft.category)?.value || 'custom';
+  }
+  const creating = selected === 'custom';
+  return `<select id="demo-topic" name="topic">${choices.map(choice => `<option value="${escapeHTML(choice.value)}" ${selected === choice.value ? 'selected' : ''}>${escapeHTML(choice.label)}</option>`).join('')}<option value="custom" ${creating ? 'selected' : ''}>+ Criar categoria personalizada</option></select>
+    <div id="custom-category-field" ${creating ? '' : 'hidden'} style="margin-top:12px">
+      <label for="custom-category">Nome da nova categoria</label>
+      <input id="custom-category" name="custom-category" maxlength="60" ${creating ? 'required' : 'disabled'} value="${escapeHTML(draft.category || '')}" placeholder="Ex.: HTML e CSS" autocomplete="off">
+    </div>`;
+}
+
+// A resposta real só entra no HTML quando o estudante escolhe revelá-la.
+function previewAnswer(card, index) {
+  const revealed = revealedPreviewAnswers.has(card.id);
+  return `<div class="preview-answer" id="preview-answer-${index}">
+    ${revealed ? `<p class="a">${escapeHTML(card.a)}</p>` : '<div class="answer-placeholder" aria-hidden="true"><span></span><span></span></div><span class="small muted">Resposta oculta</span>'}
+    <button class="btn ghost answer-toggle" data-action="toggle-preview-answer" data-id="${escapeHTML(card.id)}" aria-expanded="${revealed}" aria-controls="preview-answer-${index}" aria-label="${revealed ? 'Ocultar' : 'Mostrar'} resposta do cartão ${index + 1}">${icon('eye')}${revealed ? 'Ocultar resposta' : 'Mostrar resposta'}</button>
+  </div>`;
+}
+
 function config() {
-  return `<div class="page-head"><span class="eyebrow">01 / PREPARAR</span><h1>Uma revisão do seu jeito.</h1><p>Escolha a quantidade de cartões e as orientações para a revisão.</p></div><div class="config-grid"><section class="panel">${generationError ? `<div class="error" role="alert">${escapeHTML(generationError)}</div>` : ''}<form id="config-form" class="form-grid"><div><label for="deck-title">Nome do conjunto</label><input id="deck-title" name="title" maxlength="100" value="${escapeHTML(draft.title || 'Meu conjunto')}" required placeholder="Ex.: Usabilidade — Aula 03"></div><div><label>Quantidade de cartões</label><div class="option-grid"><label class="radio-card"><input type="radio" name="count" value="5" ${draft.count === 5 ? 'checked' : ''}>5 cartões <span class="muted tiny">Revisão curta</span></label><label class="radio-card"><input type="radio" name="count" value="10" ${draft.count === 10 ? 'checked' : ''}>10 cartões</label></div></div><div><label for="demo-topic">Categoria do conjunto</label><select id="demo-topic" name="topic">${Object.entries(
-    topics,
-  )
-    .map(
-      ([key, t]) =>
-        `<option value="${key}" ${key === draft.topic ? 'selected' : ''}>${t.label}</option>`,
-    )
-    .join(
-      '',
-    )}</select><p class="field-hint">A categoria organiza a biblioteca. As perguntas serão baseadas no material enviado.</p></div><div><label for="deck-instructions">Instruções para a revisão <span class="muted">(opcional)</span></label><textarea id="deck-instructions" name="instructions" maxlength="600" placeholder="Ex.: priorizar conceitos que podem cair na prova.">${escapeHTML(draft.instructions || '')}</textarea><p class="field-hint">Estas orientações serão enviadas à IA junto com o material.</p></div>${note('Ao gerar, texto, PDF e instruções serão enviados ao Gemini. Use materiais que você pode compartilhar; a cota gratuita tem limites e pode usar conteúdo para melhorar os produtos Google.')}<div class="form-actions">${button(`${icon('back')} Voltar`, 'back-home', 'type="button"')}<button class="btn primary" type="submit">Gerar flashcards ${icon('arrow')}</button></div></form>${annotation('Opções curtas e rótulos explícitos dão controle sobre o tamanho da revisão. O envio à IA fica explícito antes da geração.')}</section>${sourceAside()}</div>`;
+  return `<div class="page-head"><span class="eyebrow">01 / PREPARAR</span><h1>Uma revisão do seu jeito.</h1><p>Escolha a quantidade de cartões e as orientações para a revisão.</p></div><div class="config-grid"><section class="panel">${generationError ? `<div class="error" role="alert">${escapeHTML(generationError)}</div>` : ''}<form id="config-form" class="form-grid"><div><label for="deck-title">Nome do conjunto</label><input id="deck-title" name="title" maxlength="100" value="${escapeHTML(draft.title || 'Meu conjunto')}" required placeholder="Ex.: Usabilidade — Aula 03"></div><div><label>Quantidade de cartões</label><div class="option-grid"><label class="radio-card"><input type="radio" name="count" value="5" ${draft.count === 5 ? 'checked' : ''}>5 cartões <span class="muted tiny">Revisão curta</span></label><label class="radio-card"><input type="radio" name="count" value="10" ${draft.count === 10 ? 'checked' : ''}>10 cartões</label></div></div><div><label for="demo-topic">Categoria do conjunto</label>${categoryPicker()}<p class="field-hint">A categoria organiza a biblioteca. As perguntas serão baseadas no material enviado.</p></div><div><label for="deck-instructions">Instruções para a revisão <span class="muted">(opcional)</span></label><textarea id="deck-instructions" name="instructions" maxlength="600" placeholder="Ex.: priorizar conceitos que podem cair na prova.">${escapeHTML(draft.instructions || '')}</textarea><p class="field-hint">Estas orientações serão enviadas à IA junto com o material.</p></div>${note('Ao gerar, texto, PDF e instruções serão enviados ao Gemini. Use materiais que você pode compartilhar; a cota gratuita tem limites e pode usar conteúdo para melhorar os produtos Google.')}<div class="form-actions">${button(`${icon('back')} Voltar`, 'back-home', 'type="button"')}<button class="btn primary" type="submit">Gerar flashcards ${icon('arrow')}</button></div></form>${annotation('Opções curtas e rótulos explícitos dão controle sobre o tamanho da revisão. O envio à IA fica explícito antes da geração.')}</section>${sourceAside()}</div>`;
 }
 function generating() {
   return `<section class="panel generating" aria-live="polite"><span class="eyebrow">01 / PREPARAR</span><h1>Preparando seus cartões…</h1><p class="muted">Criando ${draft.count} cartões a partir do seu material.</p><div class="loading-bar" aria-hidden="true"><span></span></div><p class="small muted">O Gemini está analisando seu material. Isso pode levar alguns segundos.</p>${button('Cancelar e voltar', 'cancel-generation')}</section>`;
 }
 function preview() {
   if (!working) return home();
-  return `<div class="page-head"><span class="eyebrow">02 / CONFERIR</span><div class="title-edit"><h1>${escapeHTML(working.title)}</h1><button class="btn ghost" data-action="rename" aria-label="Renomear conjunto">${icon('edit')}</button></div><p style="margin-top:12px">Confira as perguntas e as respostas. Ajuste o que fizer sentido para você.</p></div>${note(working.provider ? 'Cartões gerados pelo Gemini a partir do material enviado. Confira as respostas antes de estudar.' : 'Conjunto de exemplo ou edição manual. Você pode ajustar as perguntas e respostas.')}<div class="preview-toolbar"><strong>${working.cards.length} cartões neste conjunto</strong>${button(`${icon('plus')} Novo cartão`, 'add-card')}</div><section class="card-list" aria-label="Cartões gerados">${working.cards.map((c, i) => `<article class="preview-card"><span class="card-number">${String(i + 1).padStart(2, '0')}</span><div class="card-content"><p class="q">${escapeHTML(c.q)}</p><p class="a">${escapeHTML(c.a)}</p></div><div class="card-tools"><button class="btn ghost" data-action="edit-card" data-id="${escapeHTML(c.id)}" aria-label="Editar cartão ${i + 1}">${icon('edit')} Editar</button><button class="btn ghost" data-action="delete-card" data-id="${escapeHTML(c.id)}" aria-label="Excluir cartão ${i + 1}">${icon('trash')}</button></div></article>`).join('')}</section>${annotation('Conferência antes do estudo oferece controle sobre possíveis erros de conteúdo. Excluir possui opção de desfazer.')}<footer class="preview-footer"><p>Alterações pendentes até salvar.</p><div class="row">${button('Salvar conjunto', 'save-only')}${button(`Salvar e estudar ${icon('arrow')}`, 'save-study', '', true)}</div></footer>`;
+  return `<div class="page-head"><span class="eyebrow">02 / CONFERIR</span><div class="title-edit"><h1>${escapeHTML(working.title)}</h1><button class="btn ghost" data-action="rename" aria-label="Renomear conjunto">${icon('edit')}</button></div><p style="margin-top:12px">As respostas começam ocultas. Revele cada uma somente quando quiser conferir ou editar.</p></div>${note(working.provider ? 'Cartões gerados pelo Gemini a partir do material enviado. Confira as respostas antes de estudar.' : 'Conjunto de exemplo ou edição manual. Você pode ajustar as perguntas e respostas.')}<div class="preview-toolbar"><strong>${working.cards.length} cartões neste conjunto</strong>${button(`${icon('plus')} Novo cartão`, 'add-card')}</div><section class="card-list" aria-label="Cartões gerados">${working.cards.map((c, i) => `<article class="preview-card"><span class="card-number">${String(i + 1).padStart(2, '0')}</span><div class="card-content"><p class="q">${escapeHTML(c.q)}</p>${previewAnswer(c, i)}</div><div class="card-tools"><button class="btn ghost" data-action="edit-card" data-id="${escapeHTML(c.id)}" aria-label="Editar cartão ${i + 1}">${icon('edit')} Editar</button><button class="btn ghost" data-action="delete-card" data-id="${escapeHTML(c.id)}" aria-label="Excluir cartão ${i + 1}">${icon('trash')}</button></div></article>`).join('')}</section>${annotation('Conferência antes do estudo oferece controle sobre possíveis erros de conteúdo. Excluir possui opção de desfazer.')}<footer class="preview-footer"><p>Alterações pendentes até salvar.</p><div class="row">${button('Salvar conjunto', 'save-only')}${button(`Salvar e estudar ${icon('arrow')}`, 'save-study', '', true)}</div></footer>`;
 }
 function timerPanel() {
   return `<section class="panel" aria-label="Temporizador Pomodoro"><div class="timer-head"><h2>${icon('clock')} Pomodoro</h2><button class="btn ghost" data-action="timer-settings" aria-label="Ajustar tempos do Pomodoro">Ajustar</button></div><div class="timer-mode"><button data-action="timer-mode" data-mode="focus" class="${timer.mode === 'focus' ? 'active' : ''}" aria-pressed="${timer.mode === 'focus'}">Foco</button><button data-action="timer-mode" data-mode="break" class="${timer.mode === 'break' ? 'active' : ''}" aria-pressed="${timer.mode === 'break'}">Pausa</button></div><div class="timer-digits" id="timer-digits" role="timer" aria-label="Tempo restante">${formatTime(timer.remaining)}</div><p class="timer-label" id="timer-label">${timer.running ? 'Tempo em andamento' : 'Você define o seu ritmo'}</p><div class="timer-controls"><button class="btn primary" id="timer-toggle" data-action="timer-toggle">${timer.running ? 'Pausar' : 'Iniciar'}</button><button class="icon-btn" data-action="timer-reset" aria-label="Reiniciar temporizador">${icon('reset')}</button></div><p class="timer-summary" id="timer-summary">${timer.rounds} ${timer.rounds === 1 ? 'período concluído' : 'períodos concluídos'} · uso opcional</p></section>`;
@@ -657,6 +683,16 @@ setInterval(() => {
 }, 250);
 
 const actions = {
+  // Cada cartão pode ser revelado e ocultado independentemente dos demais.
+  'toggle-preview-answer': (el) => {
+    const id = el.dataset.id;
+    if (!working?.cards.some(card => card.id === id)) return;
+    if (revealedPreviewAnswers.has(id)) revealedPreviewAnswers.delete(id);
+    else revealedPreviewAnswers.add(id);
+    render();
+    const toggle = Array.from(document.querySelectorAll('[data-action="toggle-preview-answer"]')).find(button => button.dataset.id === id);
+    toggle?.focus();
+  },
   // Abre o espaço local sem autenticação.
   guest: () => setUser(),
   // Abre uma das telas principais indicada pelo botão.
@@ -706,7 +742,7 @@ const actions = {
     if (!user && s !== 'login') user = { name: 'Estudante' };
     if (s === 'config' && !draft.text && !draft.file) {
       draft.text = 'Exemplo de material para testar o fluxo de geração.';
-      draft.title = topics[draft.topic].title;
+      draft.title = topics[draft.topic]?.title || 'Meu conjunto';
     }
     if (s === 'preview') ensureWorking();
     if (s === 'study') {
@@ -920,6 +956,15 @@ document.addEventListener('input', (event) => {
   }
 });
 document.addEventListener('change', async (event) => {
+  if (event.target.id === 'demo-topic') {
+    const creating = event.target.value === 'custom';
+    const field = $('#custom-category');
+    $('#custom-category-field').hidden = !creating;
+    field.disabled = !creating;
+    field.required = creating;
+    field.setCustomValidity('');
+    if (creating) field.focus();
+  }
   // A opção do mapa controla a visibilidade das notas de UX.
   if (event.target.id === 'annotations') {
     annotated = event.target.checked;
@@ -1024,7 +1069,25 @@ document.addEventListener('submit', async (event) => {
       return;
     }
     draft.count = Number(data.get('count'));
-    draft.topic = String(data.get('topic'));
+    const selectedCategory = String(data.get('topic'));
+    if (selectedCategory === 'custom') {
+      const field = $('#custom-category');
+      const category = String(data.get('custom-category') || '').trim();
+      if (!category) {
+        field.setCustomValidity('Informe um nome para a categoria.');
+        field.reportValidity();
+        field.addEventListener('input', () => field.setCustomValidity(''), { once: true });
+        return;
+      }
+      draft.topic = 'custom';
+      draft.category = category;
+    } else if (selectedCategory.startsWith('saved:')) {
+      draft.topic = 'custom';
+      draft.category = selectedCategory.slice(6);
+    } else {
+      draft.topic = selectedCategory;
+      draft.category = topics[selectedCategory].label;
+    }
     draft.instructions = String(data.get('instructions') || '').trim();
     generationError = '';
     go('generating');
@@ -1050,7 +1113,7 @@ document.addEventListener('submit', async (event) => {
         throw new Error('O servidor retornou cartões inválidos.');
       }
       working = {
-        id: uid(), title: draft.title, topic: draft.topic,
+        id: uid(), title: draft.title, topic: draft.topic, category: draft.category,
         cards: result.cards.map(card => ({ id: uid(), q: card.q, a: card.a })),
         example: false, provider: result.provider, model: result.model,
         sourceName: draft.file?.name || 'Texto colado',

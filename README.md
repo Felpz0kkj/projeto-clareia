@@ -23,7 +23,7 @@ Não abra apenas `dist/index.html` para usar a IA: o servidor é necessário par
 
 ## Fluxo de uso
 
-Entre no espaço local, cole um texto ou envie um arquivo, escolha 5 ou 10 cartões e clique em **Gerar flashcards**. O material e as instruções são enviados ao Gemini. Confira e edite as respostas antes de salvar e iniciar a revisão.
+Entre no espaço local, cole um texto ou envie um arquivo, escolha 5 ou 10 cartões e clique em **Gerar flashcards**. O material e as instruções são enviados ao Gemini. Crie uma categoria personalizada na configuração, se desejar. Na prévia, as respostas começam ocultas: clique em Mostrar resposta em cada cartão para conferir antes de salvar e estudar. As categorias salvas ficam disponíveis nas próximas criações.
 
 Texto: até 40 mil caracteres. PDF: até 2 MB. Os exemplos da biblioteca continuam disponíveis, mas a geração usa o material enviado, não o antigo catálogo fixo.
 

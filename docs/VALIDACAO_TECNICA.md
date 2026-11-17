@@ -64,3 +64,7 @@ Oito testes automáticos passaram, cobrindo servidor Node, Worker, envio de text
 ## Diagnóstico de falhas Gemini — 17/11/2026
 
 Reproduzida a mensagem genérica de indisponibilidade em uma chamada local. A chamada seguinte, após reiniciar o servidor, retornou cinco cartões com HTTP 200; a causa exata da falha anterior não foi registrada. Acrescentado diagnóstico seguro do status HTTP do provedor, sem chave ou conteúdo, e mensagens específicas para falhas temporárias, modelo não encontrado e material acima do limite. Nove testes automáticos passaram, incluindo validação de ausência de repetição automática em falhas transitórias.
+
+## Categorias e prevenção de spoilers — 17/11/2026
+
+Onze testes automáticos passaram. Os novos testes verificam criação, obrigatoriedade, salvamento e reutilização de categoria personalizada após reabrir a aplicação; verificam também que a resposta não está no HTML da prévia oculta, que apenas o cartão escolhido é revelado e que reabrir a prévia oculta todos novamente. Os testes usaram respostas simuladas e não consumiram cota de IA.
