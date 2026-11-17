@@ -1,7 +1,7 @@
 'use strict';
 
 /* Clareia / A3 — JavaScript sem dependências.
- * Login e geração de cartões são demonstrações. Nenhuma chamada de IA é feita.
+ * Espaço local de estudo com geração real pelo servidor Gemini.
  * O armazenamento local contém conjuntos e autoavaliações, nunca senhas.
  */
 // As chaves antigas preservam os estudos já salvos no protótipo.
@@ -61,7 +61,7 @@ const compactBrand = `<div class="brand brand-compact"><span class="brand-image"
 const note = (text) => `<div class="note">${icon('info')}<p>${text}</p></div>`;
 const annotation = (text) => `<div class="annotation">UX / ${text}</div>`;
 
-// Catálogo fixo usado pela demonstração; a escolha do tema carrega estes pares de pergunta e resposta.
+// Exemplos iniciais da biblioteca. A geração real usa o material enviado ao Gemini.
 const topics = {
   usabilidade: {
     label: 'Usabilidade e UX',
@@ -265,6 +265,8 @@ try {
 } catch {}
 let screen = user ? 'home' : 'login';
 // Estado ainda não salvo do fluxo de entrada e configuração de um novo conjunto.
+let generationController = null;
+let generationError = "";
 let draft = { text: '', file: null, topic: 'usabilidade', title: '', count: 5 };
 // `working` é a cópia em edição; `review` representa a sessão de estudo atual.
 let working = null,
@@ -307,7 +309,7 @@ function persist() {
     return true;
   } catch {
     toast(
-      'Não foi possível salvar neste navegador. Você pode continuar a demonstração.',
+      'Não foi possível salvar neste navegador. Você pode continuar estudando, mas as alterações podem ser perdidas.',
     );
     return false;
   }
@@ -327,6 +329,8 @@ function toast(message, undo = null) {
   }, 6000);
 }
 function go(next) {
+  generationController?.abort();
+  generationController = null;
   // Invalidar o ticket cancela uma geração atrasada; também devolvemos foco ao conteúdo principal.
   generationTicket++;
   menuOpen = false;
@@ -335,9 +339,9 @@ function go(next) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   requestAnimationFrame(() => $('#main')?.focus({ preventScroll: true }));
 }
-function setUser(name = 'Aluno demonstração') {
+function setUser(name = 'Estudante') {
   // O acesso é ilustrativo: mantém somente o nome da sessão, sem autenticação ou senha.
-  user = { name: String(name).trim().slice(0, 45) || 'Aluno demonstração' };
+  user = { name: String(name).trim().slice(0, 45) || 'Estudante' };
   try {
     sessionStorage.setItem('revisa-demo-user', JSON.stringify(user));
   } catch {}
@@ -369,7 +373,7 @@ function nav() {
 }
 function shell(content) {
   // Estrutura compartilhada pelas telas internas: menus, breadcrumb e área principal.
-  return `<div class="layout"><aside class="sidebar" aria-label="Menu principal">${brand}${button(`${icon('plus')} Novo estudo`, 'new', '', true)}<div class="sidebar-section">ESPAÇO DE ESTUDO</div><nav>${nav()}</nav><div class="sidebar-section">COMO FUNCIONA</div><p class="small muted" style="padding:0 12px">Seu material.<br>Perguntas para praticar.<br>Uma revisão de cada vez.</p><div class="sidebar-foot"><div class="row"><span class="avatar">${initials()}</span><div><strong class="small">${escapeHTML(user?.name || 'Aluno')}</strong><div class="tiny muted">Conta de demonstração</div></div></div><button class="nav-item" data-action="logout">${icon('logout')} Sair</button></div></aside><div class="shell"><header class="mobile-header">${compactBrand}<button class="icon-btn" data-action="menu" aria-label="${menuOpen ? 'Fechar' : 'Abrir'} menu" aria-expanded="${menuOpen}">${icon('menu')}</button></header>${menuOpen ? `<nav class="mobile-nav" aria-label="Menu principal">${nav()}<button class="nav-item" data-action="logout">${icon('logout')} Sair</button></nav>` : ''}<div class="topline"><div class="breadcrumb">Meu espaço <span aria-hidden="true">/</span> <span class="strong">${screenLabels[screen]}</span></div><div class="row"><span class="badge">DEMONSTRAÇÃO</span><span class="avatar hide-small" aria-label="Perfil de demonstração">${initials()}</span></div></div><main id="main" tabindex="-1">${content}</main></div></div>`;
+  return `<div class="layout"><aside class="sidebar" aria-label="Menu principal">${brand}${button(`${icon('plus')} Novo estudo`, 'new', '', true)}<div class="sidebar-section">ESPAÇO DE ESTUDO</div><nav>${nav()}</nav><div class="sidebar-section">COMO FUNCIONA</div><p class="small muted" style="padding:0 12px">Seu material.<br>Perguntas para praticar.<br>Uma revisão de cada vez.</p><div class="sidebar-foot"><div class="row"><span class="avatar">${initials()}</span><div><strong class="small">${escapeHTML(user?.name || 'Aluno')}</strong><div class="tiny muted">Espaço local</div></div></div><button class="nav-item" data-action="logout">${icon('logout')} Sair</button></div></aside><div class="shell"><header class="mobile-header">${compactBrand}<button class="icon-btn" data-action="menu" aria-label="${menuOpen ? 'Fechar' : 'Abrir'} menu" aria-expanded="${menuOpen}">${icon('menu')}</button></header>${menuOpen ? `<nav class="mobile-nav" aria-label="Menu principal">${nav()}<button class="nav-item" data-action="logout">${icon('logout')} Sair</button></nav>` : ''}<div class="topline"><div class="breadcrumb">Meu espaço <span aria-hidden="true">/</span> <span class="strong">${screenLabels[screen]}</span></div><div class="row"><span class="badge">ESTUDO LOCAL</span><span class="avatar hide-small" aria-label="Perfil de demonstração">${initials()}</span></div></div><main id="main" tabindex="-1">${content}</main></div></div>`;
 }
 function render() {
   // Uma tela é escolhida pelo estado `screen` e substitui o conteúdo anterior de `#app`.
@@ -396,7 +400,7 @@ function render() {
 }
 
 function login() {
-  return `<main class="login-layout" id="main" tabindex="-1"><section class="login-intro">${brand}<span class="eyebrow">DO MATERIAL À REVISÃO</span><h2>Menos tempo organizando.<br>Mais tempo estudando.</h2><p class="muted">Transforme o conteúdo da sua matéria em cartões para praticar, no seu ritmo.</p><div class="wire-illustration" aria-hidden="true"><div class="wire-card back"></div><div class="wire-card front"><span class="badge">PERGUNTA / RESPOSTA</span><div class="placeholder-line"></div><div class="placeholder-line"></div><div class="placeholder-line"></div></div></div><div class="login-steps"><div><span>01</span>Envie um material</div><div><span>02</span>Confira seus cartões</div><div><span>03</span>Comece a revisão</div></div></section><section class="login-form">${brand}<span class="eyebrow">SEU ESPAÇO DE ESTUDO</span><h1>Vamos começar?</h1><p class="intro">Acesse a demonstração para explorar o fluxo de estudo.</p><form id="login-form"><div class="field"><label for="login-name">Como podemos chamar você?</label><input id="login-name" name="name" maxlength="45" placeholder="Seu primeiro nome" autocomplete="off"></div><div class="field"><label for="login-email">E-mail de exemplo</label><input id="login-email" name="email" type="email" value="aluno@exemplo.com" required aria-describedby="login-hint" autocomplete="off"><div id="login-hint" class="field-hint">Use um e-mail fictício. Ele não será armazenado.</div></div><button class="btn primary full" type="submit">Entrar na demonstração ${icon('arrow')}</button></form><p class="form-footer">${button('Explorar como visitante', 'guest')}</p>${note('Acesso simulado, sem senha e sem cadastro real. A geração de flashcards também é demonstrativa; não há conexão com IA.')}${annotation('Login representado por uma entrada simplificada. Na versão funcional, prever autenticação, cadastro e recuperação de acesso.')}<div class="login-footer">PROJETO A3 · HTML / CSS / JAVASCRIPT</div></section></main>`;
+  return `<main class="login-layout" id="main" tabindex="-1"><section class="login-intro">${brand}<span class="eyebrow">DO MATERIAL À REVISÃO</span><h2>Menos tempo organizando.<br>Mais tempo estudando.</h2><p class="muted">Transforme o conteúdo da sua matéria em cartões para praticar, no seu ritmo.</p><div class="wire-illustration" aria-hidden="true"><div class="wire-card back"></div><div class="wire-card front"><span class="badge">PERGUNTA / RESPOSTA</span><div class="placeholder-line"></div><div class="placeholder-line"></div><div class="placeholder-line"></div></div></div><div class="login-steps"><div><span>01</span>Envie um material</div><div><span>02</span>Confira seus cartões</div><div><span>03</span>Comece a revisão</div></div></section><section class="login-form">${brand}<span class="eyebrow">SEU ESPAÇO DE ESTUDO</span><h1>Vamos começar?</h1><p class="intro">Entre no seu espaço local para criar e revisar cartões.</p><form id="login-form"><div class="field"><label for="login-name">Como podemos chamar você?</label><input id="login-name" name="name" maxlength="45" placeholder="Seu primeiro nome" autocomplete="off"></div><div class="field"><label for="login-email">E-mail (opcional)</label><input id="login-email" name="email" type="email" placeholder="Opcional" aria-describedby="login-hint" autocomplete="off"><div id="login-hint" class="field-hint">O e-mail não é usado para autenticação nem é armazenado.</div></div><button class="btn primary full" type="submit">Entrar no espaço de estudo ${icon('arrow')}</button></form><p class="form-footer">${button('Continuar como visitante', 'guest')}</p>${note('Este espaço é local, sem conta ou senha. Os conjuntos ficam neste navegador. Ao gerar cartões, o material é enviado ao Gemini.')}${annotation('Login representado por uma entrada simplificada. Na versão funcional, prever autenticação, cadastro e recuperação de acesso.')}<div class="login-footer">PROJETO A3 · HTML / CSS / JAVASCRIPT</div></section></main>`;
 }
 
 function deckCard(d, compact = false) {
@@ -404,7 +408,7 @@ function deckCard(d, compact = false) {
   return `<article class="deck"><div class="deck-head"><span class="deck-icon">${icon('cards')}</span><span class="badge">${d.example ? 'Exemplo' : 'Meu conjunto'}</span></div><h3>${escapeHTML(d.title)}</h3><p>${d.cards.length} cartões · ${escapeHTML(topics[d.topic]?.label || 'Personalizado')}</p><div class="deck-bottom"><span>${studied ? `${studied} ${studied === 1 ? 'sessão' : 'sessões'}` : 'Ainda não revisado'}</span><button data-action="open-deck" data-id="${escapeHTML(d.id)}">Estudar <span aria-hidden="true">↗</span></button></div>${compact ? '' : `<div class="actions">${button('Editar', 'edit-deck', `data-id="${escapeHTML(d.id)}"`)}<button class="icon-btn" data-action="delete-deck" data-id="${escapeHTML(d.id)}" aria-label="Excluir conjunto ${escapeHTML(d.title)}">${icon('trash')}</button></div>`}</article>`;
 }
 function home() {
-  return `<section class="home-hero"><div class="headline"><span class="eyebrow">UM NOVO PONTO DE PARTIDA</span><h1>O que vamos estudar hoje?</h1><p>Traga o conteúdo da sua matéria. Organize sua próxima revisão.</p></div><form id="source-form"><div class="composer"><label for="source-text" class="skip-link">Material de estudo ou instrução</label><textarea id="source-text" name="source" maxlength="40000" placeholder="Cole suas anotações ou escreva o que deseja revisar...">${escapeHTML(draft.text)}</textarea>${draft.file ? `<div class="file-chip">${icon('file')}<div><strong>${escapeHTML(draft.file.name)}</strong><div class="tiny muted">${Math.max(1, Math.round(draft.file.size / 1024))} KB · anexado para demonstração</div></div><button class="icon-btn" data-action="remove-file" type="button" aria-label="Remover anexo">${icon('close')}</button></div>` : ''}<div class="composer-footer"><div class="row"><button class="btn ghost" data-action="attach" type="button">${icon('upload')} Anexar material</button><input id="file-input" type="file" accept=".pdf,.txt,application/pdf,text/plain" hidden></div><button class="btn primary" type="submit">Criar flashcards ${icon('arrow')}</button></div></div><div id="source-error" class="error" role="alert"></div><p class="composer-hint">PDF ou TXT · até 10 MB · geração de exemplo, sem IA</p></form><div class="quick-prompts" aria-label="Carregar material de exemplo"><button data-action="sample" data-topic="usabilidade">+ Exemplo de Usabilidade</button><button data-action="sample" data-topic="ia">+ Exemplo de IA</button><button data-action="sample" data-topic="redes">+ Exemplo de Redes</button></div>${annotation('Ações visíveis reduzem a necessidade de saber escrever prompts. O anexo pode ser removido antes de continuar.')}</section><section class="recent-section"><div class="section-head"><h2>Seus conjuntos</h2><button class="btn ghost" data-action="navigate" data-screen="library">Ver todos <span aria-hidden="true">↗</span></button></div>${
+  return `<section class="home-hero"><div class="headline"><span class="eyebrow">UM NOVO PONTO DE PARTIDA</span><h1>O que vamos estudar hoje?</h1><p>Traga o conteúdo da sua matéria. Organize sua próxima revisão.</p></div><form id="source-form"><div class="composer"><label for="source-text" class="skip-link">Material de estudo ou instrução</label><textarea id="source-text" name="source" maxlength="40000" placeholder="Cole suas anotações ou escreva o que deseja revisar...">${escapeHTML(draft.text)}</textarea>${draft.file ? `<div class="file-chip">${icon('file')}<div><strong>${escapeHTML(draft.file.name)}</strong><div class="tiny muted">${Math.max(1, Math.round(draft.file.size / 1024))} KB · pronto para envio</div></div><button class="icon-btn" data-action="remove-file" type="button" aria-label="Remover anexo">${icon('close')}</button></div>` : ''}<div class="composer-footer"><div class="row"><button class="btn ghost" data-action="attach" type="button">${icon('upload')} Anexar material</button><input id="file-input" type="file" accept=".pdf,.txt,application/pdf,text/plain" hidden></div><button class="btn primary" type="submit">Criar flashcards ${icon('arrow')}</button></div></div><div id="source-error" class="error" role="alert"></div><p class="composer-hint">PDF até 2 MB · TXT até 40 mil caracteres · geração pelo Gemini</p></form><div class="quick-prompts" aria-label="Carregar material de exemplo"><button data-action="sample" data-topic="usabilidade">+ Exemplo de Usabilidade</button><button data-action="sample" data-topic="ia">+ Exemplo de IA</button><button data-action="sample" data-topic="redes">+ Exemplo de Redes</button></div>${annotation('Ações visíveis reduzem a necessidade de saber escrever prompts. O anexo pode ser removido antes de continuar.')}</section><section class="recent-section"><div class="section-head"><h2>Seus conjuntos</h2><button class="btn ghost" data-action="navigate" data-screen="library">Ver todos <span aria-hidden="true">↗</span></button></div>${
     decks.length
       ? `<div class="decks-grid">${decks
           .slice(0, 3)
@@ -415,10 +419,10 @@ function home() {
 }
 
 function sourceAside() {
-  return `<aside class="source-aside panel"><span class="eyebrow">MATERIAL ENVIADO</span><div class="source-placeholder">${icon('file')}</div><h3>${escapeHTML(draft.file?.name || 'Texto colado')}</h3><span class="badge">${draft.file ? 'Arquivo anexado' : 'Texto'}</span>${draft.text ? `<div class="source-snippet">${escapeHTML(draft.text.slice(0, 550))}${draft.text.length > 550 ? '…' : ''}</div>` : ''}<p class="small muted" style="margin:15px 0 0">O material é exibido para testar o envio. Seu conteúdo não será analisado por IA nesta versão.</p></aside>`;
+  return `<aside class="source-aside panel"><span class="eyebrow">MATERIAL ENVIADO</span><div class="source-placeholder">${icon('file')}</div><h3>${escapeHTML(draft.file?.name || 'Texto colado')}</h3><span class="badge">${draft.file ? 'Arquivo anexado' : 'Texto'}</span>${draft.text ? `<div class="source-snippet">${escapeHTML(draft.text.slice(0, 550))}${draft.text.length > 550 ? '…' : ''}</div>` : ''}<p class="small muted" style="margin:15px 0 0">Este material será enviado ao Gemini somente quando você clicar em Gerar flashcards.</p></aside>`;
 }
 function config() {
-  return `<div class="page-head"><span class="eyebrow">01 / PREPARAR</span><h1>Uma revisão do seu jeito.</h1><p>Escolha o tamanho do conjunto e o tema usado nesta demonstração.</p></div><div class="config-grid"><section class="panel"><form id="config-form" class="form-grid"><div><label for="deck-title">Nome do conjunto</label><input id="deck-title" name="title" maxlength="100" value="${escapeHTML(draft.title || topics[draft.topic].title)}" required placeholder="Ex.: Usabilidade — Aula 03"></div><div><label>Quantidade de cartões</label><div class="option-grid"><label class="radio-card"><input type="radio" name="count" value="5" ${draft.count === 5 ? 'checked' : ''}>5 cartões <span class="muted tiny">Revisão curta</span></label><label class="radio-card"><input type="radio" name="count" value="10" ${draft.count === 10 ? 'checked' : ''}>10 cartões</label></div></div><div><label for="demo-topic">Tema dos cartões de exemplo</label><select id="demo-topic" name="topic">${Object.entries(
+  return `<div class="page-head"><span class="eyebrow">01 / PREPARAR</span><h1>Uma revisão do seu jeito.</h1><p>Escolha a quantidade de cartões e as orientações para a revisão.</p></div><div class="config-grid"><section class="panel">${generationError ? `<div class="error" role="alert">${escapeHTML(generationError)}</div>` : ''}<form id="config-form" class="form-grid"><div><label for="deck-title">Nome do conjunto</label><input id="deck-title" name="title" maxlength="100" value="${escapeHTML(draft.title || 'Meu conjunto')}" required placeholder="Ex.: Usabilidade — Aula 03"></div><div><label>Quantidade de cartões</label><div class="option-grid"><label class="radio-card"><input type="radio" name="count" value="5" ${draft.count === 5 ? 'checked' : ''}>5 cartões <span class="muted tiny">Revisão curta</span></label><label class="radio-card"><input type="radio" name="count" value="10" ${draft.count === 10 ? 'checked' : ''}>10 cartões</label></div></div><div><label for="demo-topic">Categoria do conjunto</label><select id="demo-topic" name="topic">${Object.entries(
     topics,
   )
     .map(
@@ -427,14 +431,14 @@ function config() {
     )
     .join(
       '',
-    )}</select><p class="field-hint">Na aplicação final, as perguntas serão criadas a partir do material enviado.</p></div><div><label for="deck-instructions">Instruções para a revisão <span class="muted">(opcional)</span></label><textarea id="deck-instructions" name="instructions" maxlength="600" placeholder="Ex.: priorizar conceitos que podem cair na prova.">${escapeHTML(draft.instructions || '')}</textarea><p class="field-hint">Serão salvas como observação. Não alteram os cartões demonstrativos.</p></div>${note('Nesta versão, serão carregados cartões prontos do tema escolhido. PDF, texto e instruções não são enviados a uma IA.')}<div class="form-actions">${button(`${icon('back')} Voltar`, 'back-home', 'type="button"')}<button class="btn primary" type="submit">Gerar demonstração ${icon('arrow')}</button></div></form>${annotation('Opções curtas e rótulos explícitos dão controle sobre o tamanho da revisão. A origem simulada dos cartões fica visível antes da geração.')}</section>${sourceAside()}</div>`;
+    )}</select><p class="field-hint">A categoria organiza a biblioteca. As perguntas serão baseadas no material enviado.</p></div><div><label for="deck-instructions">Instruções para a revisão <span class="muted">(opcional)</span></label><textarea id="deck-instructions" name="instructions" maxlength="600" placeholder="Ex.: priorizar conceitos que podem cair na prova.">${escapeHTML(draft.instructions || '')}</textarea><p class="field-hint">Estas orientações serão enviadas à IA junto com o material.</p></div>${note('Ao gerar, texto, PDF e instruções serão enviados ao Gemini. Use materiais que você pode compartilhar; a cota gratuita tem limites e pode usar conteúdo para melhorar os produtos Google.')}<div class="form-actions">${button(`${icon('back')} Voltar`, 'back-home', 'type="button"')}<button class="btn primary" type="submit">Gerar flashcards ${icon('arrow')}</button></div></form>${annotation('Opções curtas e rótulos explícitos dão controle sobre o tamanho da revisão. O envio à IA fica explícito antes da geração.')}</section>${sourceAside()}</div>`;
 }
 function generating() {
-  return `<section class="panel generating" aria-live="polite"><span class="eyebrow">01 / PREPARAR</span><h1>Preparando seus cartões…</h1><p class="muted">Carregando ${draft.count} exemplos de ${escapeHTML(topics[draft.topic].label)}.</p><div class="loading-bar" aria-hidden="true"><span></span></div><p class="small muted">Geração simulada. Nenhum arquivo está sendo enviado.</p>${button('Cancelar e voltar', 'cancel-generation')}</section>`;
+  return `<section class="panel generating" aria-live="polite"><span class="eyebrow">01 / PREPARAR</span><h1>Preparando seus cartões…</h1><p class="muted">Criando ${draft.count} cartões a partir do seu material.</p><div class="loading-bar" aria-hidden="true"><span></span></div><p class="small muted">O Gemini está analisando seu material. Isso pode levar alguns segundos.</p>${button('Cancelar e voltar', 'cancel-generation')}</section>`;
 }
 function preview() {
   if (!working) return home();
-  return `<div class="page-head"><span class="eyebrow">02 / CONFERIR</span><div class="title-edit"><h1>${escapeHTML(working.title)}</h1><button class="btn ghost" data-action="rename" aria-label="Renomear conjunto">${icon('edit')}</button></div><p style="margin-top:12px">Confira as perguntas e as respostas. Ajuste o que fizer sentido para você.</p></div>${note('Cartões demonstrativos de ' + escapeHTML(topics[working.topic]?.label || 'estudo') + '. O material anexado não foi analisado. Você pode editar ou criar seus próprios cartões.')}<div class="preview-toolbar"><strong>${working.cards.length} cartões neste conjunto</strong>${button(`${icon('plus')} Novo cartão`, 'add-card')}</div><section class="card-list" aria-label="Cartões gerados">${working.cards.map((c, i) => `<article class="preview-card"><span class="card-number">${String(i + 1).padStart(2, '0')}</span><div class="card-content"><p class="q">${escapeHTML(c.q)}</p><p class="a">${escapeHTML(c.a)}</p></div><div class="card-tools"><button class="btn ghost" data-action="edit-card" data-id="${escapeHTML(c.id)}" aria-label="Editar cartão ${i + 1}">${icon('edit')} Editar</button><button class="btn ghost" data-action="delete-card" data-id="${escapeHTML(c.id)}" aria-label="Excluir cartão ${i + 1}">${icon('trash')}</button></div></article>`).join('')}</section>${annotation('Conferência antes do estudo oferece controle sobre possíveis erros de conteúdo. Excluir possui opção de desfazer.')}<footer class="preview-footer"><p>Alterações pendentes até salvar.</p><div class="row">${button('Salvar conjunto', 'save-only')}${button(`Salvar e estudar ${icon('arrow')}`, 'save-study', '', true)}</div></footer>`;
+  return `<div class="page-head"><span class="eyebrow">02 / CONFERIR</span><div class="title-edit"><h1>${escapeHTML(working.title)}</h1><button class="btn ghost" data-action="rename" aria-label="Renomear conjunto">${icon('edit')}</button></div><p style="margin-top:12px">Confira as perguntas e as respostas. Ajuste o que fizer sentido para você.</p></div>${note(working.provider ? 'Cartões gerados pelo Gemini a partir do material enviado. Confira as respostas antes de estudar.' : 'Conjunto de exemplo ou edição manual. Você pode ajustar as perguntas e respostas.')}<div class="preview-toolbar"><strong>${working.cards.length} cartões neste conjunto</strong>${button(`${icon('plus')} Novo cartão`, 'add-card')}</div><section class="card-list" aria-label="Cartões gerados">${working.cards.map((c, i) => `<article class="preview-card"><span class="card-number">${String(i + 1).padStart(2, '0')}</span><div class="card-content"><p class="q">${escapeHTML(c.q)}</p><p class="a">${escapeHTML(c.a)}</p></div><div class="card-tools"><button class="btn ghost" data-action="edit-card" data-id="${escapeHTML(c.id)}" aria-label="Editar cartão ${i + 1}">${icon('edit')} Editar</button><button class="btn ghost" data-action="delete-card" data-id="${escapeHTML(c.id)}" aria-label="Excluir cartão ${i + 1}">${icon('trash')}</button></div></article>`).join('')}</section>${annotation('Conferência antes do estudo oferece controle sobre possíveis erros de conteúdo. Excluir possui opção de desfazer.')}<footer class="preview-footer"><p>Alterações pendentes até salvar.</p><div class="row">${button('Salvar conjunto', 'save-only')}${button(`Salvar e estudar ${icon('arrow')}`, 'save-study', '', true)}</div></footer>`;
 }
 function timerPanel() {
   return `<section class="panel" aria-label="Temporizador Pomodoro"><div class="timer-head"><h2>${icon('clock')} Pomodoro</h2><button class="btn ghost" data-action="timer-settings" aria-label="Ajustar tempos do Pomodoro">Ajustar</button></div><div class="timer-mode"><button data-action="timer-mode" data-mode="focus" class="${timer.mode === 'focus' ? 'active' : ''}" aria-pressed="${timer.mode === 'focus'}">Foco</button><button data-action="timer-mode" data-mode="break" class="${timer.mode === 'break' ? 'active' : ''}" aria-pressed="${timer.mode === 'break'}">Pausa</button></div><div class="timer-digits" id="timer-digits" role="timer" aria-label="Tempo restante">${formatTime(timer.remaining)}</div><p class="timer-label" id="timer-label">${timer.running ? 'Tempo em andamento' : 'Você define o seu ritmo'}</p><div class="timer-controls"><button class="btn primary" id="timer-toggle" data-action="timer-toggle">${timer.running ? 'Pausar' : 'Iniciar'}</button><button class="icon-btn" data-action="timer-reset" aria-label="Reiniciar temporizador">${icon('reset')}</button></div><p class="timer-summary" id="timer-summary">${timer.rounds} ${timer.rounds === 1 ? 'período concluído' : 'períodos concluídos'} · uso opcional</p></section>`;
@@ -504,9 +508,9 @@ function openDialog(title, content) {
 }
 function showMap() {
   openDialog(
-    'Mapa do protótipo',
+    'Mapa do Clareia',
     `<p class="small muted">Explore as telas do fluxo. O estudo e a prévia usam um conjunto de exemplo quando necessário.</p><div class="map-list">${[
-      ['login', 'Acesso demonstrativo'],
+      ['login', 'Espaço local de estudo'],
       ['home', 'Início / chat'],
       ['config', 'Configurar geração'],
       ['preview', 'Conferir e editar cartões'],
@@ -521,7 +525,7 @@ function showMap() {
       )
       .join(
         '',
-      )}</div><label class="checklabel"><input id="annotations" type="checkbox" ${annotated ? 'checked' : ''}>Mostrar anotações de usabilidade nas telas</label><div class="divider"></div><p class="small muted">Protótipo navegável de baixa fidelidade, com a paleta lilás, azul suave e creme da identidade Clareia. Login, anexos e geração por IA são simulações. Temporizador, edição e autoavaliação funcionam no navegador.</p><div class="stack"><a class="btn full" href="mobile.html" target="_blank" rel="noopener">Ver em largura de celular ↗</a><a class="btn full" href="clareia-prototipo-a3.zip" download>Baixar HTML, CSS, JS e documentação</a></div>`,
+      )}</div><label class="checklabel"><input id="annotations" type="checkbox" ${annotated ? 'checked' : ''}>Mostrar anotações de usabilidade nas telas</label><div class="divider"></div><p class="small muted">Clareia com geração de cartões pelo Gemini. O espaço de estudo e os dados são locais, sem autenticação ou sincronização entre dispositivos.</p><div class="stack"><a class="btn full" href="mobile.html" target="_blank" rel="noopener">Ver em largura de celular ↗</a><a class="btn full" href="clareia-prototipo-a3.zip" download>Baixar HTML, CSS, JS e documentação</a></div>`,
   );
 }
 function fillSample(topic) {
@@ -653,7 +657,7 @@ setInterval(() => {
 }, 250);
 
 const actions = {
-  // Entra na demonstração sem exigir nome ou e-mail.
+  // Abre o espaço local sem autenticação.
   guest: () => setUser(),
   // Abre uma das telas principais indicada pelo botão.
   navigate: (el) => go(el.dataset.screen),
@@ -699,7 +703,7 @@ const actions = {
   'map-go': (el) => {
     const s = el.dataset.screen;
     dialog.close();
-    if (!user && s !== 'login') user = { name: 'Aluno demonstração' };
+    if (!user && s !== 'login') user = { name: 'Estudante' };
     if (s === 'config' && !draft.text && !draft.file) {
       draft.text = 'Exemplo de material para testar o fluxo de geração.';
       draft.title = topics[draft.topic].title;
@@ -729,7 +733,7 @@ const actions = {
   },
   // Volta da configuração para a entrada do material.
   'back-home': () => go('home'),
-  // Cancela a espera da geração simulada e retorna à configuração.
+  // Cancela a solicitação de geração e retorna à configuração.
   'cancel-generation': () => go('config'),
   // Abre o diálogo para cadastrar um cartão vazio.
   'add-card': () => editCard(),
@@ -855,7 +859,7 @@ const actions = {
   'view-source': () =>
     openDialog(
       'Material da revisão',
-      `<p class="small strong source-name">${escapeHTML(review.deck.sourceName || 'Cartões de exemplo')}</p><p class="small muted">${escapeHTML(review.deck.sourceText || 'Este conjunto utiliza exemplos preparados para testar a interface.')}</p>${review.deck.instructions ? `<div class="divider"></div><p class="small"><strong>Suas observações:</strong><br>${escapeHTML(review.deck.instructions)}</p>` : ''}${note('Este protótipo não extrai texto de PDFs e não gera perguntas por IA. Os cartões de exemplo podem ser editados manualmente.')}`,
+      `<p class="small strong source-name">${escapeHTML(review.deck.sourceName || 'Cartões de exemplo')}</p><p class="small muted">${escapeHTML(review.deck.sourceText || 'Este conjunto utiliza exemplos preparados para testar a interface.')}</p>${review.deck.instructions ? `<div class="divider"></div><p class="small"><strong>Suas observações:</strong><br>${escapeHTML(review.deck.instructions)}</p>` : ''}${note('Os cartões podem conter erros de IA. Confira as respostas no material de origem e edite o que for necessário.')}`,
     ),
   // Repete somente cartões que receberam a marcação de revisão.
   'retry-again': () => beginReview(lastResult.deck, lastResult.cards),
@@ -941,25 +945,42 @@ document.addEventListener('change', async (event) => {
       event.target.value = '';
       return;
     }
-    draft.file = { name: file.name, size: file.size };
-    if (/\.txt$/i.test(file.name)) {
-      try {
+    if (/\.pdf$/i.test(file.name) && file.size > 2 * 1024 * 1024) {
+      error.textContent = 'Para a geração por IA, escolha um PDF de até 2 MB.';
+      event.target.value = '';
+      return;
+    }
+    const fileMetadata = { name: file.name, size: file.size, reading: true };
+    draft.file = fileMetadata;
+    const currentDraft = draft;
+    try {
+      if (/\.txt$/i.test(file.name)) {
         const text = await file.text();
-        draft.text = text.slice(0, 40000);
-        render();
-        toast('Texto carregado. A geração continua sendo demonstrativa.');
-      } catch {
-        draft.file = null;
-        error.textContent =
-          'Não foi possível ler o arquivo. Tente colar o texto.';
+        if (draft !== currentDraft || draft.file !== fileMetadata) return;
+        if (text.length > 40000) throw new Error('O TXT excede 40 mil caracteres. Escolha um trecho menor.');
+        draft.text = text;
+      } else {
+        const dataURL = await new Promise((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Não foi possível ler o PDF.'));
+          reader.readAsDataURL(file);
+        });
+        if (draft !== currentDraft || draft.file !== fileMetadata) return;
+        fileMetadata.pdf = String(dataURL).split(',')[1];
       }
-    } else {
+      fileMetadata.reading = false;
       render();
-      toast('PDF anexado para demonstração. O conteúdo não será lido.');
+      toast('Material carregado. Confira as opções antes de enviar ao Gemini.');
+    } catch (error) {
+      if (draft !== currentDraft || draft.file !== fileMetadata) return;
+      draft.file = null;
+      render();
+      $('#source-error').textContent = error.message;
     }
   }
 });
-document.addEventListener('submit', (event) => {
+document.addEventListener('submit', async (event) => {
   const form = event.target;
   // Os formulários são tratados na página atual, sem navegação ou recarga do navegador.
   event.preventDefault();
@@ -968,13 +989,15 @@ document.addEventListener('submit', (event) => {
     return;
   }
   const data = new FormData(form);
-  // Login de demonstração guarda apenas o nome e segue para a tela inicial.
+  // Identificação local: guarda apenas o nome, sem criar uma conta.
   if (form.id === 'login-form') {
     setUser(data.get('name'));
   }
   // A entrada precisa ter texto ou arquivo; sem ambos, mostra orientação e mantém o foco no campo.
   if (form.id === 'source-form') {
     draft.text = String(data.get('source') || '');
+    if (draft.file?.reading) { $('#source-error').textContent = 'Aguarde a leitura do arquivo.'; return; }
+    generationError = '';
     if (!draft.text.trim() && !draft.file) {
       $('#source-error').textContent =
         'Cole um texto, anexe um arquivo ou escolha um dos exemplos para continuar.';
@@ -984,10 +1007,10 @@ document.addEventListener('submit', (event) => {
     if (!draft.title)
       draft.title = draft.file
         ? draft.file.name.replace(/\.(pdf|txt)$/i, '')
-        : topics[draft.topic].title;
+        : 'Meu conjunto';
     go('config');
   }
-  // Guarda as opções e inicia uma espera curta antes de montar cartões fixos do tema.
+  // Envia as opções ao nosso servidor e aguarda os cartões realmente gerados pela IA.
   if (form.id === 'config-form') {
     draft.title = String(data.get('title')).trim();
     if (!draft.title) {
@@ -1003,24 +1026,47 @@ document.addEventListener('submit', (event) => {
     draft.count = Number(data.get('count'));
     draft.topic = String(data.get('topic'));
     draft.instructions = String(data.get('instructions') || '').trim();
+    generationError = '';
     go('generating');
     const ticket = generationTicket;
-    setTimeout(() => {
-      if (ticket !== generationTicket || screen !== 'generating') return;
+    generationController = new AbortController();
+    try {
+      const response = await fetch('/api/flashcards', {
+        method: 'POST',
+        signal: generationController.signal,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text: draft.text,
+          count: draft.count,
+          instructions: draft.instructions,
+          pdf: draft.file?.pdf || null
+        })
+      });
+      const result = await response.json();
+      if (ticket !== generationTicket) return;
+      if (!response.ok) throw new Error(result.error || 'Falha ao gerar os cartões.');
+      if (!Array.isArray(result.cards) || result.cards.length !== draft.count ||
+          !result.cards.every(c => c && typeof c.q === 'string' && typeof c.a === 'string')) {
+        throw new Error('O servidor retornou cartões inválidos.');
+      }
       working = {
-        id: uid(),
-        title: draft.title,
-        topic: draft.topic,
-        cards: makeCards(draft.topic, draft.count),
-        example: false,
+        id: uid(), title: draft.title, topic: draft.topic,
+        cards: result.cards.map(card => ({ id: uid(), q: card.q, a: card.a })),
+        example: false, provider: result.provider, model: result.model,
         sourceName: draft.file?.name || 'Texto colado',
-        sourceText: draft.text.slice(0, 3000),
-        instructions: draft.instructions,
-        createdAt: new Date().toISOString(),
+        sourceText: draft.text.slice(0, 3000), instructions: draft.instructions,
+        createdAt: new Date().toISOString()
       };
       go('preview');
-    }, 1100);
+    } catch (error) {
+      if (ticket !== generationTicket || error.name === 'AbortError') return;
+      generationError = error instanceof TypeError
+        ? 'Não foi possível acessar o servidor. Abra o projeto por npm start, em http://localhost:3000.'
+        : error.message;
+      go('config');
+    }
   }
+
   // Valida e salva um cartão novo ou atualiza o cartão escolhido para edição.
   if (form.id === 'card-form') {
     const q = String(data.get('q')).trim(),

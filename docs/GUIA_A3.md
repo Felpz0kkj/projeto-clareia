@@ -1,3 +1,5 @@
+> **Registro da versão anterior (protótipo).** Para o funcionamento atual com Gemini, consulte [IA_GEMINI.md](IA_GEMINI.md) e o README. As descrições abaixo sobre IA simulada são históricas.
+
 # Guia para a A3 — decisões e validação do protótipo
 
 ## Contexto

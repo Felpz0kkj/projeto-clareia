@@ -1,4 +1,4 @@
-"""Gera um HTML autossuficiente e um ZIP do código, usando apenas Python padrão."""
+"""Gera um HTML reunido e um ZIP completo. A IA continua exigindo o servidor."""
 from pathlib import Path
 import argparse
 import base64
@@ -23,7 +23,7 @@ def main():
 
     # A cópia única funciona sem os arquivos auxiliares mobile.html e ZIP.
     links = r'<div class="stack"><a class="btn full" href="mobile\.html".*?</div>'
-    js, count = re.subn(links, '<p class="small muted">Esta cópia reúne HTML, CSS, JavaScript e logo em um único arquivo. Redimensione a janela ou abra no celular para conferir o layout responsivo.</p>', js)
+    js, count = re.subn(links, '<p class="small muted">Esta cópia reúne a interface em um arquivo, mas a geração por IA precisa do servidor Node.js. Para usar, execute npm start na pasta do projeto.</p>', js)
     if count != 1:
         raise ValueError("Não foi possível adaptar os links auxiliares do HTML único.")
 
@@ -38,10 +38,10 @@ def main():
     shutil.copy2(guide, output / guide.name)
     archive = root / "dist/clareia-prototipo-a3.zip"
     # Exclui os ZIPs para o pacote não incluir uma cópia de si mesmo.
-    files = [root / "README.md"]
-    for directory in ("dist", "docs", "scripts"):
+    files = [root / name for name in ("README.md", "package.json", "package-lock.json", ".env.example", ".gitignore")]
+    for directory in ("dist", "docs", "scripts", "server", "worker", "test"):
         files.extend(p for p in (root / directory).rglob("*")
-                     if p.is_file() and p.suffix != ".zip" and "__pycache__" not in p.parts)
+                     if p.is_file() and p.suffix != ".zip" and "__pycache__" not in p.parts and ".openai" not in p.parts and not (directory == "dist" and "server" in p.relative_to(root).parts))
     with zipfile.ZipFile(archive, "w", compression=zipfile.ZIP_DEFLATED) as bundle:
         for file in sorted(files):
             bundle.write(file, file.relative_to(root).as_posix())

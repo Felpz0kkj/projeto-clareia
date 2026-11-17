@@ -1,3 +1,5 @@
+> **Registro da versão anterior (protótipo).** Para o funcionamento atual com Gemini, consulte [IA_GEMINI.md](IA_GEMINI.md) e o README. As descrições abaixo sobre IA simulada são históricas.
+
 # Como o código do protótipo funciona
 
 Este guia acompanha a versão didática de 05/11/2026 do protótipo Clareia — Método de estudo. A interface apresenta a identificação “protótipo de baixa fidelidade”. O nome anterior só é mantido nas chaves internas de armazenamento para preservar os estudos existentes. A intenção é ajudar a equipe a explicar a estrutura e as decisões em uma apresentação, não substituir a leitura do código. Para localizar trechos, procure os nomes de funções e constantes citados: números de linha mudam quando o código é atualizado.

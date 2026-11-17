@@ -1,82 +1,66 @@
-# Clareia — protótipo de baixa fidelidade / A3
+# Clareia — Método de estudo
 
-Plataforma web de flashcards com a identidade Clareia — Método de estudo. Este protótipo demonstra a navegação; não é a aplicação final com autenticação e inteligência artificial.
+Projeto universitário em HTML, CSS e JavaScript com **geração real de flashcards pelo Gemini**, a partir de texto, TXT ou PDF. Mantém edição, revisão, autoavaliação, biblioteca, histórico e Pomodoro.
 
-## Executar
+## Executar no computador
 
-Abra `dist/index.html` no navegador. Não há instalação nem dependências externas. Se o navegador restringir armazenamento em arquivos locais, use um servidor estático:
+Requer Node.js 24 ou superior. A execução local não exige instalar bibliotecas.
 
-```bash
-python3 -m http.server 8000 --directory dist
+1. Copie `.env.example` para `.env`.
+2. Crie uma chave no [Google AI Studio](https://aistudio.google.com/api-keys), em um projeto **Free Tier sem faturamento vinculado**.
+3. Preencha `GEMINI_API_KEY` no `.env`. Não compartilhe esse arquivo nem a chave.
+4. Execute `npm start` e abra **http://localhost:3000**.
+
+```text
+GEMINI_API_KEY=sua_chave_aqui
+GEMINI_MODEL=gemini-3.5-flash-lite
+PORT=3000
 ```
 
-Acesse `http://localhost:8000`. O arquivo `dist/mobile.html` mostra a mesma aplicação dentro de uma moldura com largura aproximada de 390 px.
+A chave sozinha não garante gratuidade: o projeto Google deve estar no nível gratuito. O código não ativa faturamento ou compra créditos; também não consegue confirmar sozinho o estado de faturamento da conta. Ao atingir uma cota, informa a falha, sem trocar automaticamente de provedor ou repetir chamadas.
 
-## Testar o fluxo principal
+Não abra apenas `dist/index.html` para usar a IA: o servidor é necessário para proteger a chave e receber os materiais.
 
-1. Entre com um nome e um e-mail fictícios ou escolha “Explorar como visitante”.
-2. Na tela inicial de chat, clique em “Exemplo de Usabilidade” ou cole texto/anexe um arquivo.
-3. Clique em “Criar flashcards”. Dê nome ao conjunto e selecione 5 ou 10 cartões.
-4. Escolha o tema da demonstração. Ele determina os exemplos; o documento não é interpretado.
-5. Clique em “Gerar demonstração”. Confira, edite, adicione ou exclua cartões.
-6. Clique em “Salvar e estudar”. Leia a pergunta antes de revelar a resposta.
-7. Marque “Preciso revisar” ou “Lembrei”. As marcações representam autoavaliação.
-8. Confira o resumo, retome os cartões marcados e encontre o conjunto em “Meus estudos”.
+## Fluxo de uso
 
-O “Mapa de telas”, na barra superior, permite navegar pelo protótipo e ativar anotações de usabilidade. A tela de resultado é acessada depois de concluir uma sessão para não inventar resultados.
+Entre no espaço local, cole um texto ou envie um arquivo, escolha 5 ou 10 cartões e clique em **Gerar flashcards**. O material e as instruções são enviados ao Gemini. Confira e edite as respostas antes de salvar e iniciar a revisão.
 
-## Funciona neste protótipo
+Texto: até 40 mil caracteres. PDF: até 2 MB. Os exemplos da biblioteca continuam disponíveis, mas a geração usa o material enviado, não o antigo catálogo fixo.
 
-- Navegação entre acesso, início, configuração, processamento, prévia, revisão, resultado, biblioteca e progresso.
-- Validação de entrada vazia, tipo de arquivo, tamanho de até 10 MB e arquivo vazio.
-- Leitura local de TXT, limitada a 40 mil caracteres. PDF é somente um anexo representativo.
-- Carregamento de 5 ou 10 cartões de exemplo de Usabilidade, IA ou Redes.
-- Edição, adição, exclusão com desfazer e renomeação de conjuntos.
-- Autoavaliação por cartão, repetição dos itens difíceis e histórico de sessões concluídas.
-- Busca e filtros na biblioteca; distinção entre exemplos e conjuntos próprios.
-- Pomodoro com foco/pausa, iniciar/pausar/reiniciar e tempos configuráveis.
-- Persistência dos conjuntos e histórico em `localStorage`; nome da sessão em `sessionStorage`.
-- Layout Mobile First com media queries em 600, 1000 e 1400 px.
-- Rótulos, foco visível, navegação por teclado, diálogos e mensagens de validação.
+## Organização do código
 
-## Simulações e limites
+- `dist/index.html`, `styles.css` e `app.js`: interface comentada em português.
+- `server/index.js`: servidor HTTP local, validação e limites.
+- `server/gemini.js`: chamada da IA, esquema JSON e conferência dos cartões.
+- `worker/index.js`: adaptador da mesma integração para Sites/Cloudflare.
+- `scripts/build-site.js`: empacota os arquivos públicos no Worker sem incluir `.env`.
+- `test/app.test.js`: testes do servidor e da interface, com um Gemini simulado.
+- `docs/IA_GEMINI.md`: explicação da integração para estudar e apresentar.
+- `scripts/gerar_entregaveis.py`: gera o ZIP completo e uma cópia reunida da interface. A IA continua exigindo o servidor.
 
-- **Login:** não autentica; não há senha nem conta real. O e-mail fictício não é armazenado.
-- **IA:** não existe integração ou chamada a um serviço. O tema selecionado carrega exemplos fixos. O texto, PDF e instruções não alteram automaticamente as perguntas.
-- **PDF:** não há extração, OCR, envio ou armazenamento dos bytes do documento. Apenas nome e tamanho são usados para a demonstração visual.
-- **Dados:** ficam no navegador, sem sincronização, controle de acesso ou banco de dados. Use materiais fictícios para testar.
-- **Progresso:** mede prática e autoavaliação, não nota, aprendizagem comprovada ou acurácia.
-- **Revisão espaçada:** não foi implementado algoritmo de agendamento. Retomar os itens difíceis ocorre na mesma sessão por escolha do usuário.
-- **Responsividade:** a moldura mobile usa a largura real de um iframe para acionar as media queries. Não substitui testes em dispositivos reais.
+## Testes e publicação
 
-## Arquivos e organização
+```bash
+npm ci
+npm test
+npm run build:site
+```
 
-- `dist/index.html`: estrutura inicial, metadados, contêiner principal e diálogo.
-- `dist/styles.css`: paleta de cores da logo Clareia (lilás, azul suave e creme), enquadramento da logo, componentes e adaptações responsivas.
-- `dist/app.js`: dados de exemplo, estado da aplicação, renderização de telas, eventos, armazenamento e temporizador.
-- `dist/mobile.html`: moldura para inspecionar a aplicação em largura de celular.
-- `docs/GUIA_A3.md`: relação com o edital, justificativas de interface, roteiro de validação e registro inicial de IA.
+`npm ci` instala ferramentas de desenvolvimento. Elas não são necessárias para executar o servidor local. Os testes não fazem chamadas reais à IA e não consomem cota.
 
-Não há framework, biblioteca, fonte externa ou compilação. A logo em PNG transparente está em `dist/assets/clareia-logo.png` e é enquadrada por CSS. As ilustrações e ícones são formas simples de CSS e SVG inline. A separação em três tecnologias facilita explicar e modificar cada responsabilidade.
+O build de hospedagem produz `dist/server/index.js`. Configure `GEMINI_API_KEY` como **segredo do servidor**, nunca no código do navegador. O manifesto de uma instalação Sites pertence àquela instalação e não é incluído neste repositório público.
 
-## Como estudar o código
+## Escopo e limites
 
-No JavaScript, comece por `topics` (exemplos), `render()` (tela atual), `actions` (ações dos botões), os eventos `submit` (formulários) e `persist()` (salvamento). `beginReview()`, `rate()` e `finishReview()` controlam a revisão. O temporizador usa `Date.now()` para calcular o tempo restante.
+- **Espaço local:** sem cadastro, autenticação própria ou sincronização. Nome, conjuntos e histórico ficam no navegador.
+- **IA real:** respostas podem conter erros. Confira os cartões no material original.
+- **PDF real:** enviado na requisição ao Gemini. Seus bytes não ficam salvos na biblioteca.
+- **Privacidade:** o nível gratuito do Gemini pode usar os materiais para melhorar produtos Google. Use conteúdo que você pode compartilhar.
+- **Limites:** uma geração por vez e até 20 tentativas por dia no processo local, sem repetição automática. Reiniciar o processo zera o contador; no Worker ele vale por instância. Não substitui as cotas oficiais do Google.
+- **Autoavaliação:** “Lembrei” e “Preciso revisar” registram percepção, não uma nota calculada pela IA.
 
-## Cuidados para a entrega
+## Verificação em 17/11/2026
 
-Este material apoia a etapa de prototipação do Entregável 1. O documento da equipe, a investigação com usuário real, a apresentação e a validação não estão automaticamente realizados. A equipe deve compreender o código, adaptá-lo às evidências coletadas e desenvolver a solução funcional para o Entregável 2.
+Testes automáticos verificaram criação, edição, salvamento, revisão, cancelamento, erros e proteção dos arquivos privados. Duas chamadas reais ao Gemini foram bem-sucedidas: uma com texto e outra com PDF de exemplo, gerando cinco cartões em cada. Não houve testes com participantes externos.
 
-O histórico técnico de publicação deste protótipo não representa evolução acadêmica da equipe. Não simule commits passados. Registre as próximas mudanças conforme forem feitas e documente o uso de IA.
-
-## Entregáveis atualizados
-
-- `docs/EXPLICACAO_DO_CODIGO.md`: guia didático de HTML, CSS, JavaScript e principais funções, com trechos reais para explicar na apresentação.
-- `dist/clareia-prototipo-a3.zip`: pacote atualizado do código e documentação.
-- `scripts/gerar_entregaveis.py`: gera o pacote e um HTML único com a logo incorporada. Execute `python scripts/gerar_entregaveis.py --saida ../entrega`.
-
-O pacote mantém os arquivos separados para facilitar o estudo; o HTML único funciona sozinho. As chaves antigas de armazenamento foram preservadas para não perder os estudos salvos no mesmo navegador e endereço.
-
-## Versão didática — 05/11/2026
-
-O código de `dist/app.js` e `dist/styles.css` foi reorganizado com indentação e comentários em português. Estude pelos arquivos separados: HTML para a estrutura, CSS para a aparência e JavaScript para dados, ações e eventos. O arquivo `docs/EXPLICACAO_DO_CODIGO.md` orienta a leitura e explica os trechos principais. A execução no navegador continua sem instalação ou dependências externas.
+Referências: [preços e nível gratuito](https://aistudio.google.com/docs/pricing#gemini-3.5-flash-lite), [primeira chamada](https://aistudio.google.com/docs/get-started), [PDFs](https://aistudio.google.com/docs/document-processing), [JSON estruturado](https://aistudio.google.com/docs/structured-output).

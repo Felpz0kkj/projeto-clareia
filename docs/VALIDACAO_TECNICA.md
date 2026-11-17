@@ -56,3 +56,7 @@ Substituída a logo pela versão PNG com canal alfa enviada pelo usuário (1015 
 ## Versão didática — 05/11/2026
 
 Código organizado e comentado por agente Luna e revisado pelo agente principal. A árvore sintática JavaScript foi comparada com a versão anterior desconsiderando comentários, posições e representação textual dos literais: resultado idêntico. As regras CSS foram comparadas após remover comentários e normalizar a formatação e linhas vazias: resultado idêntico. Também foi confirmada a mesma lógica do HTML único gerado. As strings de HTML das telas, eventos, dados e chaves de armazenamento foram preservadas. Esses controles verificam a equivalência da mudança de legibilidade; não constituem uma nova rodada de testes com usuários.
+
+## Integração real Gemini — 17/11/2026
+
+Oito testes automáticos passaram, cobrindo servidor Node, Worker, envio de texto/PDF, validações, cota, arquivos privados, edição, salvamento, revisão e cancelamento. Os testes usam respostas simuladas e não consomem cota. Separadamente, duas chamadas reais foram executadas com uma chave configurada localmente: texto de redes e PDF sintético de redes, ambos retornando cinco cartões coerentes e HTTP 200. A chave não foi exibida, servida na interface ou incluída no Git. O espaço de estudo permanece local, sem autenticação própria ou sincronização. Não houve avaliação com participantes externos.
